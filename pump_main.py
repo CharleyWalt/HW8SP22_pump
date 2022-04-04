@@ -8,6 +8,10 @@ from PyQt5.QtWidgets import QFileDialog,QMessageBox
 from PyQt5.QtGui import QCursor
 from PyQt5.QtCore import Qt
 
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+from sklearn.preprocessing import PolynomialFeatures
+
 from pump_GUI import Ui_Dialog
 from pump_class import pump
 
@@ -58,6 +62,7 @@ class main_window(QDialog, Ui_Dialog):
             self.lineEdit_headunits.setText(self.pump.head_unit)
             # self.lineEdit_headcoeff.setText(self.pump.head_coeff)
             # self.lineEdit_efficiencycoeff.setText(self.pump.eff_coeff)
+            self.PlotSomething()
 
             QApplication.restoreOverrideCursor()
         except:
@@ -65,12 +70,62 @@ class main_window(QDialog, Ui_Dialog):
             bad_file()
 
     def PlotSomething(self):
-        x=np.linspace(0,6*np.pi,300)
-        y=np.zeros_like(x)
-        for i in range(300):
-            y[i]=np.exp(-x[i]/5)*np.sin(x[i])
-        plt.plot(x,y)
+        y = self.pump.head
+        X_lin = self.pump.flow
+
+        rg = LinearRegression()
+
+        # Create quadratic features
+        quadratic = PolynomialFeatures(degree=2)
+        cubic = PolynomialFeatures(degree=3)
+        X_quad = quadratic.fit_transform(X_lin)
+        X_cubic = cubic.fit_transform(X_lin)
+
+        # Fit features
+        lin_rg = LinearRegression()
+        lin_rg.fit(X_lin, y)
+        linear_r2 = r2_score(y, lin_rg.predict(X_lin))
+
+        quad_rg = LinearRegression()
+        quad_rg.fit(X_quad, y)
+        quadratic_r2 = r2_score(y, quad_rg.predict(X_quad))
+
+        cubic_rg = LinearRegression()
+        cubic_rg.fit(X_cubic, y)
+        cubic_r2 = r2_score(y, cubic_rg.predict(X_cubic))
+
+        # Plot results
+        X_range = np.arange(X_lin.min(), X_lin.max(), 1)[:, np.newaxis]
+        y_lin_pred = lin_rg.predict(X_range)
+        y_quad_pred = quad_rg.predict(quadratic.fit_transform(X_range))
+        y_cubic_pred = cubic_rg.predict(cubic.fit_transform(X_range))
+
+        plt.scatter(X_lin, y, label='Training points', color='lightgray')
+
+        plt.plot(X_range, y_lin_pred, label='Linear (d=1), $R^2=%.2f$' % linear_r2, color='blue', lw=2, linestyle=':')
+
+        plt.plot(X_range, y_quad_pred, label='Quadratic (d=2), $R^2=%.2f$' % quadratic_r2, color='red', lw=2,
+                 linestyle='-')
+
+        plt.plot(X_range, y_cubic_pred, label='Cubic (d=3), $R^2=%.2f$' % cubic_r2, color='green', lw=2, linestyle='--')
+
+        plt.xlabel('X-Axis')
+        plt.ylabel('Y-Axis')
+        plt.legend(loc='upper right')
+        plt.title("Happy Chart")
+
+        plt.tight_layout()
         plt.show()
+
+
+
+
+        # x=np.linspace(0,6*np.pi,300)
+        # y=np.zeros_like(x)
+        # for i in range(300):
+        #     y[i]=np.exp(-x[i]/5)*np.sin(x[i])
+        # plt.plot(x,y)
+        # plt.show()
         return
 
     def ExitApp(self):
