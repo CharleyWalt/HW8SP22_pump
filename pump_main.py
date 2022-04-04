@@ -7,10 +7,8 @@ from PyQt5.QtWidgets import QDialog, QApplication
 from PyQt5.QtWidgets import QFileDialog,QMessageBox
 from PyQt5.QtGui import QCursor
 from PyQt5.QtCore import Qt
-
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
-from sklearn.preprocessing import PolynomialFeatures
+from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar)
+from matplotlib.figure import Figure
 
 from pump_GUI import Ui_Dialog
 from pump_class import pump
@@ -28,6 +26,11 @@ class main_window(QDialog, Ui_Dialog):
         # signals and slots are assigned in this function
         self.assign_widgets()
         self.pump = None  # the primary data element for this program
+
+        # this is part of my failed attempt to get the plot to appear in the main window
+        # FigureCanvas = FigureCanvasQTAgg
+        # static_canvas = FigureCanvas(Figure(figsize=(5, 3)))
+        # main_window.addWidget(static_canvas)
         self.show()
 
     def assign_widgets(self):
@@ -55,13 +58,13 @@ class main_window(QDialog, Ui_Dialog):
 
         self.pump = pump()  # create a pump instance (object)
 
-        try:  # an example of handling an error
+        try:  # attempt execution of operations
             self.pump.processPumpData(data)
             self.lineEdit_pumpname.setText(self.pump.name)
             self.lineEdit_flowunits.setText(self.pump.flow_unit)
             self.lineEdit_headunits.setText(self.pump.head_unit)
-            # self.lineEdit_headcoeff.setText(self.pump.head_coeff)
-            # self.lineEdit_efficiencycoeff.setText(self.pump.eff_coeff)
+            self.lineEdit_headcoeff.setText(np.array2string(self.pump.head_coeff))
+            self.lineEdit_efficiencycoeff.setText(np.array2string(self.pump.eff_coeff))
             self.PlotSomething()
 
             QApplication.restoreOverrideCursor()
@@ -70,62 +73,31 @@ class main_window(QDialog, Ui_Dialog):
             bad_file()
 
     def PlotSomething(self):
-        y = self.pump.head
-        X_lin = self.pump.flow
+        # plot given data points for head and efficiency
+        plt.scatter(self.pump.flow, self.pump.head, marker='o', color='white', edgecolors='k', label='Head')
+        plt.scatter(self.pump.flow, self.pump.efficiency, marker='^', color='white', edgecolors='k', label='Efficiency')
 
-        rg = LinearRegression()
+        # data to plot for interpolation functions
+        flow_x = np.linspace(self.pump.flow[0], self.pump.flow[-1], num=100)
+        head_y = []
+        eff_y = []
+        for f in flow_x:  # evaluating the 2nd and 3rd order polynomials at flow values in range
+            head_y.append(np.polyval(self.pump.head_coeff, f))
+            eff_y.append(np.polyval(self.pump.eff_coeff, f))
+        plt.plot(flow_x, head_y, linestyle='dashed', color='k', label='Head - Quadratic Fit')  # plotting the two functions
+        plt.plot(flow_x, eff_y, linestyle=':', color='k', label='Efficiency - Cubic Fit')
 
-        # Create quadratic features
-        quadratic = PolynomialFeatures(degree=2)
-        cubic = PolynomialFeatures(degree=3)
-        X_quad = quadratic.fit_transform(X_lin)
-        X_cubic = cubic.fit_transform(X_lin)
+        plt.xlabel('Flow Rate (%s)' %self.pump.flow_unit)
+        plt.ylabel('Head (%s)' %self.pump.head_unit)
+        plt.legend()
+        plt.title('%s' %self.pump.name)
 
-        # Fit features
-        lin_rg = LinearRegression()
-        lin_rg.fit(X_lin, y)
-        linear_r2 = r2_score(y, lin_rg.predict(X_lin))
-
-        quad_rg = LinearRegression()
-        quad_rg.fit(X_quad, y)
-        quadratic_r2 = r2_score(y, quad_rg.predict(X_quad))
-
-        cubic_rg = LinearRegression()
-        cubic_rg.fit(X_cubic, y)
-        cubic_r2 = r2_score(y, cubic_rg.predict(X_cubic))
-
-        # Plot results
-        X_range = np.arange(X_lin.min(), X_lin.max(), 1)[:, np.newaxis]
-        y_lin_pred = lin_rg.predict(X_range)
-        y_quad_pred = quad_rg.predict(quadratic.fit_transform(X_range))
-        y_cubic_pred = cubic_rg.predict(cubic.fit_transform(X_range))
-
-        plt.scatter(X_lin, y, label='Training points', color='lightgray')
-
-        plt.plot(X_range, y_lin_pred, label='Linear (d=1), $R^2=%.2f$' % linear_r2, color='blue', lw=2, linestyle=':')
-
-        plt.plot(X_range, y_quad_pred, label='Quadratic (d=2), $R^2=%.2f$' % quadratic_r2, color='red', lw=2,
-                 linestyle='-')
-
-        plt.plot(X_range, y_cubic_pred, label='Cubic (d=3), $R^2=%.2f$' % cubic_r2, color='green', lw=2, linestyle='--')
-
-        plt.xlabel('X-Axis')
-        plt.ylabel('Y-Axis')
-        plt.legend(loc='upper right')
-        plt.title("Happy Chart")
-
-        plt.tight_layout()
+        # plt.tight_layout()
         plt.show()
 
+        # was unable to get the plot to successfully appear inside the main window, so I opted to display it normally
+        # as a second window
 
-
-
-        # x=np.linspace(0,6*np.pi,300)
-        # y=np.zeros_like(x)
-        # for i in range(300):
-        #     y[i]=np.exp(-x[i]/5)*np.sin(x[i])
-        # plt.plot(x,y)
-        # plt.show()
         return
 
     def ExitApp(self):

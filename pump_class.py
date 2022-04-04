@@ -51,7 +51,16 @@ class pump:
                 self.head_unit = cells[head_col]
             else:  # always assuming that lines greater than 2 only contain data corresponding to the known headers
                 cells = line.split()
-                self.head.append(cells[head_col])
-                self.flow.append(cells[flow_col])
-                self.efficiency.append(cells[eff_col])
+                self.head.append(float(cells[head_col]))
+                self.flow.append(float(cells[flow_col]))
+                self.efficiency.append(float(cells[eff_col]))
             l += 1
+
+        # calculate polynomial coefficients
+        print(self.head)
+        print(self.flow)
+        print(self.efficiency)
+        self.head_coeff = np.polyfit(self.flow, self.head, 2)
+        self.eff_coeff = np.polyfit(self.flow, self.efficiency, 3)
+        print(self.head_coeff)
+        print(self.eff_coeff)
